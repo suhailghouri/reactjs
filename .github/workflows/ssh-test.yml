@@ -2,7 +2,7 @@
       - name: Test SSH connection
         env:
           EC2_HOST: "15.135.238.202"
-          EC2_USER: "ubuntu"
+          EC2_USER: "deploy"
         run: |
           if [ -z "$EC2_HOST" ]; then
             echo "ERROR: EC2_HOST secret is missing or empty"
