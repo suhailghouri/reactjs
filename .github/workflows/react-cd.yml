@@ -60,7 +60,7 @@ jobs:
       - name: Deploy React files
         env:
           EC2_HOST: "15.135.238.202"
-          EC2_USER: "ubuntu"
+          EC2_USER: "deploy"
         run: |
           ssh -i ~/.ssh/ec2_key \
             -o IdentitiesOnly=yes \
