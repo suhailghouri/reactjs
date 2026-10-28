@@ -1,93 +1,11 @@
 
-name: React CD to EC2
-
-on:
-  workflow_run:
-    workflows: ["React CI Pipeline"]
-    types:
-      - completed
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  deploy:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          ref: main
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: SampleFrontedReact/package-lock.json
-
-      - name: Install dependencies
-        working-directory: SampleFrontedReact
-        run: npm ci
-
-      - name: Run ESLint
-        working-directory: SampleFrontedReact
-        run: npm run lint
-
-      - name: Build React application
-        working-directory: SampleFrontedReact
-        run: npm run build
-
-      - name: Configure SSH
-        env:
-          EC2_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$EC2_PRIVATE_KEY" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-
-      - name: Add EC2 host key
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-        run: |
-          test -n "$EC2_HOST" || {
-            echo "EC2_HOST secret is empty"
-            exit 1
-          }
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
-
-      - name: Deploy React build to EC2
+      - name: Test SSH and create file on EC2
         env:
           EC2_HOST: "15.135.238.202"
           EC2_USER: "deploy"
         run: |
-          test -n "$EC2_USER" || {
-            echo "EC2_USER secret is empty"
-            exit 1
-          }
-
           ssh -i ~/.ssh/ec2_key \
-            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=10 \
             "$EC2_USER@$EC2_HOST" \
-            "sudo mkdir -p /var/www/html &&
-             sudo chown -R $EC2_USER /var/www/html"
-
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/ec2_key -o IdentitiesOnly=yes" \
-            SampleFrontedReact/dist/ \
-            "$EC2_USER@$EC2_HOST:/var/www/html/"
-
-      - name: Verify website
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-        run: |
-          curl --fail --show-error --silent \
-            --max-time 15 "http://$EC2_HOST/"
+            'touch /home/deploy/github-actions-ssh-test.txt && echo "SSH connection successful" && whoami && ls -l /home/deploy/github-actions-ssh-test.txt'
