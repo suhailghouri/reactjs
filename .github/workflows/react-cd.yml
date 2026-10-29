@@ -6,9 +6,41 @@ on:
     branches:
       - main
 
+env:
+  EC2_HOST: 32.236.201.74
+  EC2_USER: deploy
+
 jobs:
   ssh-check:
-    uses: ./.github/workflows/ssh-test.yml
+    name: Test SSH connectivity to EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test SSH connection
+        env:
+          EC2_PRIVATE_KEY: ${{ secrets.LGITHUB_ACTIONS_DEPLOY }}
+        run: |
+          set -eu
+
+          test -n "$EC2_HOST" || { echo "EC2_HOST is missing"; exit 1; }
+          test -n "$EC2_USER" || { echo "EC2_USER is missing"; exit 1; }
+          test -n "$EC2_PRIVATE_KEY" || { echo "LGITHUB_ACTIONS_DEPLOY secret is missing"; exit 1; }
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$EC2_PRIVATE_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+          # Fail early if the key is malformed
+          ssh-keygen -y -f ~/.ssh/ec2_key > /dev/null && echo "key parses OK"
+
+          ssh \
+            -i ~/.ssh/ec2_key \
+            -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=10 \
+            -o IdentitiesOnly=yes \
+            "$EC2_USER@$EC2_HOST" \
+            'echo "SSH connection successful"; whoami; hostname'
 
   build-and-deploy:
     needs: ssh-check
@@ -28,3 +60,17 @@ jobs:
 
       - name: Build React App
         run: npm run build
+
+      # ---- Added: your job was named "deploy" but had no deploy step ----
+      - name: Deploy to EC2
+        env:
+          EC2_PRIVATE_KEY: ${{ secrets.LGITHUB_ACTIONS_DEPLOY }}
+        run: |
+          set -eu
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$EC2_PRIVATE_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/ec2_key -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes" \
+            dist/ "$EC2_USER@$EC2_HOST:/var/www/react-app/"
