@@ -1,0 +1,7 @@
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: i18n-tutorial     # add this line
+
+      - name: Build React App
+        run: npm run build
+        working-directory: i18n-tutorial     # add this line
