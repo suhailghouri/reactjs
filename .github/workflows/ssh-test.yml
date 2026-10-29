@@ -1,23 +1,38 @@
+name: Test SSH Connectivity to EC2
 
+on:
+  workflow_dispatch:
+
+jobs:
+  ssh-test:
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Test SSH connection
         env:
-          EC2_HOST: "15.135.238.202"
-          EC2_USER: "deploy"
+          EC2_HOST: 32.236.201.74
+          EC2_USER: deploy
+          EC2_PRIVATE_KEY: ${{ secrets.LGITHUB_ACTIONS_DEPLOY }}
         run: |
-          if [ -z "$EC2_HOST" ]; then
-            echo "ERROR: EC2_HOST secret is missing or empty"
-            exit 1
-          fi
+          set -eu
 
-          if [ -z "$EC2_USER" ]; then
-            echo "ERROR: EC2_USER secret is missing or empty"
-            exit 1
-          fi
+          test -n "$EC2_HOST" || { echo "EC2_HOST secret is missing"; exit 1; }
+          test -n "$EC2_USER" || { echo "EC2_USER secret is missing"; exit 1; }
+          test -n "$EC2_PRIVATE_KEY" || { echo "EC2_SSH_KEY secret is missing"; exit 1; }
 
-          echo "Testing SSH connection to EC2..."
-          ssh -i ~/.ssh/ec2_key \
-            -o IdentitiesOnly=yes \
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$EC2_PRIVATE_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+
+          # Fail early if the key is malformed
+          ssh-keygen -y -f ~/.ssh/ec2_key > /dev/null && echo "key parses OK"
+
+          ssh \
+            -i ~/.ssh/ec2_key \
             -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=10 \
-            "${EC2_USER}@${EC2_HOST}" \
-            "whoami && hostname"
+            -o IdentitiesOnly=yes \
+            "$EC2_USER@$EC2_HOST" \
+            'echo "SSH connection successful"; whoami; hostname'
