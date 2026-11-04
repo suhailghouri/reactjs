@@ -22,7 +22,7 @@ stages:
           REM yarn install
           REM npm install -g yarn
           REM yarn workspace ecotime_pwa build:prod
-          npm run build
+          run build
 
     - task: CopyFiles@2
       inputs:
